@@ -1,0 +1,147 @@
+---
+title: "Machine Learning Course Project"
+output: html_document
+---
+Jonathan Mallia
+Saturday, 11th March, 2017
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+## Data
+
+The training data for this project are available here: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+The classe variable contains 5 different ways barbell lifts were performed correctly and incorrectly:
+
+Class A: exactly according to the specification
+Class B: throwing the elbows to the front
+Class C: lifting the dumbbell only halfway
+Class D: lowering the dumbbell only halfway
+Class E: throwing the hips to the front
+
+## Objective
+
+The goal of this project is to predict the manner in which people performed barbell lifts. This is the classe variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+
+## Loading the data
+
+```{r}
+library(caret)
+library(randomForest)
+library(rpart)
+library(rpart.plot)
+
+setwd("C:\\Users\\support\\Desktop\\Project")
+
+set.seed(1000)
+
+allData <- read.csv(".//Data//pml-training.csv", na.strings=c("NA","#DIV/0!",""))
+newdata <- read.csv(".//Data//pml-testing.csv", na.strings=c("NA","#DIV/0!",""))
+```
+
+Check the size of the data set
+```{r}
+dim(allData) 
+```
+
+Check the number of instances per predictors 
+```{r}
+table(allData$classe)
+```
+
+```{r}
+plot(allData$classe, col="red", main="Bar Plot - Instances of classe variable", xlab="classe", ylab="Frequency")
+```
+
+```{r}
+
+str(allData)
+```
+
+## Cross validation
+We used 70% of training set data to built a model, and use the rest to test the model predictions
+```{r}
+inTrain <- createDataPartition(y=allData$classe, p=0.7, list=FALSE)
+
+training <- allData[inTrain,]
+testing <- allData[-inTrain,]
+```
+
+## Data Cleaning
+Firstly, the variables with near zero variance were excluded  using the function nearZeroVar in the caret package
+```{r}
+near0var <- nearZeroVar(training)
+training <- training[, -near0var]
+```
+
+Then columns with 50% ore more missing values were excluded 
+```{r}
+cntlength <- sapply(training, function(x) { sum(!(is.na(x) | x == ""))})
+nullcol <- names(cntlength[cntlength < 0.5 * length(training$classe)])
+```
+
+Descriptive columns like name were removed 
+```{r}
+descriptcol <- c("RN", "user_name", "raw_timestamp_part_1", "raw_timestamp_part_2", "cvtd_timestamp", "new_window", "num_window")
+excludecols <- c(descriptcol, nullcol)
+```
+
+The data set is then updated with the above changes
+```{r}
+training <- training[, !names(training) %in% excludecols]
+```
+
+## Prediction with Classification Trees
+```{r}
+modFitCT <- rpart(classe ~ ., data=training, method="class")
+
+# Predicting:
+predCT <- predict(modFitCT, testing, type = "class")
+
+# Plot of the Decision Tree
+rpart.plot(modFitCT, main="Classification Tree")
+```
+
+Test results on our testing data set
+```{r}
+confusionMatrix(predCT, testing$classe)
+```
+
+## Prediction using Random Forest
+```{r}
+modFitRF <- randomForest(classe ~. , data=training, method="class")
+
+# Predicting:
+predRF <- predict(modFitRF, testing, type = "class")
+```
+
+Test results on testing data set
+```{r}
+confusionMatrix(predRF, testing$classe)
+```
+
+```{r}
+plot(modFitRF)
+```
+
+### Outcome
+As expected, Random Forest algorithm performed considerably better than Decision Trees.
+Accuracy for Random Forest model was 99.44% compared to 76.53% for Decision Tree model. 
+
+## Prediction on the Test Data
+
+The best model which is the Random Forest, was used to predict on the test data the way 20 participates performed the exercise.
+    
+```{r}
+predict_final <- predict(modFitRF, newdata, type = "class")
+print(predict_final)
+```
